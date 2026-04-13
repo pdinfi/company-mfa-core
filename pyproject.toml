@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-mfa-core"
+version = "0.1.0"
+description = "Production-grade, pluggable multi-factor authentication for Django and Django REST Framework."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "django-mfa-core maintainers" }]
+keywords = ["django", "mfa", "2fa", "totp", "otp", "drf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = [
+    "Django>=4.2",
+    "djangorestframework>=3.14",
+    "pyotp>=2.9",
+    "cryptography>=41.0",
+]
+
+[project.optional-dependencies]
+celery = ["celery>=5.3"]
+redis = ["redis>=5.0"]
+qr = ["qrcode[pil]>=7.4"]
+dev = [
+    "pytest>=7.4",
+    "pytest-django>=4.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/django-mfa-core"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["django_mfa_core*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+python_files = ["tests/test_*.py"]
