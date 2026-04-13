@@ -29,6 +29,14 @@ pip install django-mfa-core[celery,redis,qr]
 
 ## Django setup
 
+This package does **not** load `.env` files. In the **project that installs** `django-mfa-core`, put secrets and integration settings in **your** `.env`, load them in `settings.py`, and pass them into Django and `MFA_SETTINGS`. See **`.env.example`** in this repo for a full template.
+
+| Factor | Comes from the **user row** (your DB) | Comes from **your** `.env` / `settings.py` |
+|--------|----------------------------------------|--------------------------------------------|
+| **Authenticator (TOTP)** | Account label in the URI (e.g. username); enrolled secret is stored encrypted on `MFADevice`, verified with `pyotp` | `MFA_ENCRYPTION_KEY`; issuer / `TOTP_APPS` / `TOTP_DEFAULT_ISSUER` / `TOTP_RESOLVER` (e.g. `MFA_TOTP_ISSUER`) |
+| **Email OTP** | **`user.email`** (To) | SMTP or mail API (`EMAIL_*`, `DEFAULT_FROM_EMAIL`); optional `MFA_SETTINGS["EMAIL_FROM"]` (e.g. `MFA_EMAIL_FROM`) |
+| **SMS OTP** | **`user.phone`** or **`user.phone_number`** (To) | Gateway credentials in **your** `.env`, read by **your** `SMSMFAProvider` subclass ([Plivo](https://www.plivo.com), Twilio, Vonage, AWS SNS, etc. — see `.env.example`) |
+
 1. Add to `INSTALLED_APPS`:
 
 ```python
@@ -41,6 +49,8 @@ INSTALLED_APPS = [
 2. Configure MFA (merge with your project settings):
 
 ```python
+import os
+
 MFA_SETTINGS = {
     "ENABLED": True,
     "PROVIDERS": ["totp", "email"],
@@ -51,8 +61,18 @@ MFA_SETTINGS = {
     "MIDDLEWARE_EXEMPT_PREFIXES": ["/admin/login/", "/static/", "/health/"],
     "MFA_URL_PREFIX": "/mfa/",
     "RATE_LIMIT_BACKEND": "memory",  # or "redis"
-    "REDIS_URL": None,  # e.g. "redis://localhost:6379/0"
-    "EMAIL_FROM": "security@example.com",
+    "REDIS_URL": os.environ.get("REDIS_URL"),  # if using redis rate limiter
+    "EMAIL_FROM": os.environ.get("MFA_EMAIL_FROM", "security@example.com"),
+    # Optional: authenticator-app presets (Google / Microsoft / AWS Virtual MFA are all standard TOTP).
+    # Build this dict from your own settings/env — nothing is hardcoded in the package.
+    "TOTP_APPS": [
+        {"id": "google", "issuer": os.environ.get("MFA_TOTP_ISSUER", "My Company"), "label": "Google Authenticator"},
+        {"id": "microsoft", "issuer": os.environ.get("MFA_TOTP_ISSUER", "My Company"), "label": "Microsoft Authenticator"},
+    ],
+    # Or omit TOTP_APPS and set a single default issuer:
+    # "TOTP_DEFAULT_ISSUER": os.environ.get("MFA_TOTP_ISSUER"),
+    # Full control: callable(user, request, totp_app_id, workspace_id) -> dict with issuer, account_name?, device_label?, totp_app_id?
+    # "TOTP_RESOLVER": my_totp_resolver,
 }
 
 # Strongly recommended: dedicated Fernet key (32 url-safe base64-encoded bytes)
@@ -96,7 +116,7 @@ def ready(self):
 
 ## Integration overview
 
-- Users start **TOTP** enrollment with `POST /mfa/setup/` (optional `issuer`, `workspace_id`). The response includes the plaintext secret (display once), provisioning URI, and optional QR (`django-mfa-core[qr]`). Finish enrollment by posting the same path with `device_id` plus the first valid `code`.
+- Users start **TOTP** enrollment with `POST /mfa/setup/` (optional `issuer`, `totp_app_id`, `workspace_id`). If you configure multiple `TOTP_APPS`, clients must pass `totp_app_id` (unless only one app is listed). The response includes the plaintext secret (display once), provisioning URI, resolved `issuer`, optional `totp_app_id`, and optional QR (`django-mfa-core[qr]`). Finish enrollment by posting the same path with `device_id` plus the first valid `code`.
 - **Email / SMS** challenges are started with `POST /mfa/initiate/`; delivery runs via Celery when configured, otherwise synchronously.
 - After login, **middleware** blocks protected routes until `POST /mfa/verify/` succeeds (or trust window is active).
 - **Backup codes** can be used during verification when configured.
@@ -109,7 +129,7 @@ All endpoints require an authenticated user unless noted.
 |--------|------|---------|
 | POST | `/mfa/initiate/` | Start email/SMS OTP challenge |
 | POST | `/mfa/verify/` | Verify active challenge, TOTP, or backup code |
-| POST | `/mfa/setup/` | Start TOTP enrollment **or** confirm with `device_id` + `code` |
+| POST | `/mfa/setup/` | Start TOTP enrollment (`issuer`, `totp_app_id`) **or** confirm with `device_id` + `code` |
 | POST | `/mfa/disable/` | Disable MFA (requires valid code or backup code) |
 
 Set `MFA_SETTINGS["CELERY_OTP"] = True` to deliver OTP challenges via Celery (with synchronous fallback when workers are unavailable). Configure `VERIFY_REDIRECT_URL` for HTML redirects when middleware blocks unverified sessions.

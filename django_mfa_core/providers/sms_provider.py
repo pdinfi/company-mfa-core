@@ -1,4 +1,4 @@
-"""SMS delivery stub with a clear extension point for real gateways."""
+"""SMS delivery stub with a clear extension point for real gateways (Plivo, Twilio, etc.)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class SMSMFAProvider(BaseMFAProvider):
-    """Placeholder SMS provider; subclass and override ``send_challenge``."""
+    """Placeholder SMS provider; subclass ``send_challenge`` and call your vendor (e.g. Plivo, Twilio)."""
 
     name = "sms"
 

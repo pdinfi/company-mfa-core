@@ -37,6 +37,7 @@ from django_mfa_core.settings import get_mfa_settings
 from django_mfa_core.signals import mfa_challenge_sent, mfa_verified
 from django_mfa_core.utils.encryption import decrypt_secret, encrypt_secret, hash_backup_code
 from django_mfa_core.utils.helpers import get_client_ip, normalize_workspace_id
+from django_mfa_core.utils.totp_app_config import resolve_totp_setup_context
 from django_mfa_core.utils.rate_limit import rate_limit
 
 
@@ -394,6 +395,7 @@ class MFAService:
         user,
         *,
         issuer: Optional[str] = None,
+        totp_app_id: Optional[str] = None,
         workspace_id: Optional[UUID | str] = None,
         request=None,
     ) -> Dict[str, Any]:
@@ -402,6 +404,14 @@ class MFAService:
         if DEVICE_TYPE_TOTP not in cfg.get("PROVIDERS", []):
             raise MFAChallengeError("TOTP provider is disabled.")
         ws = normalize_workspace_id(workspace_id)
+        ctx = resolve_totp_setup_context(
+            cfg,
+            user,
+            request=request,
+            issuer_override=issuer,
+            totp_app_id=totp_app_id,
+            workspace_id=ws,
+        )
         secret = totp_service.generate_totp_secret()
         ciphertext = encrypt_secret(secret)
         device = MFADevice.objects.create(
@@ -411,14 +421,16 @@ class MFAService:
             secret_ciphertext=ciphertext,
             verified=False,
             is_active=True,
-            label="Authenticator",
+            label=ctx.device_label,
+            totp_app_id=ctx.totp_app_id,
         )
-        account_name = getattr(user, "get_username", lambda: str(user.pk))()
-        uri = totp_service.build_provisioning_uri(secret, account_name, issuer=issuer)
+        uri = totp_service.build_provisioning_uri(secret, ctx.account_name, issuer=ctx.issuer)
         payload: Dict[str, Any] = {
             "device_id": str(device.id),
             "secret": secret,
             "provisioning_uri": uri,
+            "issuer": ctx.issuer,
+            "totp_app_id": ctx.totp_app_id or None,
         }
         qr = totp_service.render_qr_code_base64(uri)
         if qr:

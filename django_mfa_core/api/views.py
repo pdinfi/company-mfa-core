@@ -85,6 +85,7 @@ class MFASetupView(APIView):
             setup = MFAService.setup_totp(
                 request.user,
                 issuer=data.get("issuer"),
+                totp_app_id=(data.get("totp_app_id") or None),
                 workspace_id=workspace_id,
                 request=request,
             )

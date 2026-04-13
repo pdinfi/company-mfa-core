@@ -26,6 +26,7 @@ class MFASetupSerializer(serializers.Serializer):
     """Begin TOTP enrollment or confirm a pending device."""
 
     issuer = serializers.CharField(required=False, allow_blank=True)
+    totp_app_id = serializers.CharField(required=False, allow_blank=True, max_length=64)
     workspace_id = serializers.UUIDField(required=False, allow_null=True)
     device_id = serializers.UUIDField(required=False, allow_null=True)
     code = serializers.CharField(required=False, allow_blank=True)

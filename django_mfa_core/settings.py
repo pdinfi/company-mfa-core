@@ -7,6 +7,7 @@ from typing import Any
 from django.conf import settings as django_settings
 
 from django_mfa_core.exceptions import MFAConfigurationError
+from django_mfa_core.utils.totp_app_config import validate_totp_apps_config
 
 DEFAULT_MFA_SETTINGS: dict[str, Any] = {
     "ENABLED": True,
@@ -30,6 +31,10 @@ DEFAULT_MFA_SETTINGS: dict[str, Any] = {
     "VERIFY_RATE_LIMIT": "30/m",
     "CELERY_OTP": False,
     "VERIFY_REDIRECT_URL": "/mfa/verify/",
+    # Pluggable TOTP / authenticator-app labels (Google, Microsoft, AWS VMFA, etc. are standard TOTP).
+    "TOTP_APPS": [],
+    "TOTP_DEFAULT_ISSUER": None,
+    "TOTP_RESOLVER": None,
 }
 
 
@@ -45,4 +50,12 @@ def get_mfa_settings() -> dict[str, Any]:
     merged = {**DEFAULT_MFA_SETTINGS, **user_cfg}
     if merged["ENABLED"] and merged["RATE_LIMIT_BACKEND"] == "redis" and not merged.get("REDIS_URL"):
         raise MFAConfigurationError("REDIS_URL is required when RATE_LIMIT_BACKEND is 'redis'.")
+    apps = merged.get("TOTP_APPS")
+    if apps is None:
+        merged["TOTP_APPS"] = []
+        apps = []
+    validate_totp_apps_config(apps)
+    tr = merged.get("TOTP_RESOLVER")
+    if tr is not None and not callable(tr):
+        raise MFAConfigurationError("TOTP_RESOLVER must be a callable or None.")
     return merged

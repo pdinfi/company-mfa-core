@@ -34,6 +34,11 @@ class MFADevice(models.Model):
     verified = models.BooleanField(default=False, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
     label = models.CharField(max_length=128, blank=True)
+    totp_app_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Host-defined authenticator preset id (e.g. google, microsoft) when using TOTP_APPS.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
